@@ -22,7 +22,11 @@ Engineers, researchers, and AI enthusiasts who want to go beyond using APIs — 
 
 Tomer Gal
 Global CTO, Deloitte — NVIDIA Alliance
+
 R&D Leader, Zora - Deloitte's Agentic business
+
 NVIDIA Deep Learning Institute Instructor - CUDA Python/C++/Multiple-GPUs, Deep Learning Fundamentals
+
 Computer Science faculty member, Braude College of Engineering
+
 Head of the Center of Excellence for AI in Finance, Reichman University
