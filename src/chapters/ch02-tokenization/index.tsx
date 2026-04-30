@@ -31,6 +31,14 @@ export default function Chapter02() {
         ]}
       />
 
+      {/* Anchor sentence callout */}
+      <div className="mb-6 p-4 rounded-xl bg-surface-2 border border-violet-500/20 text-sm text-ink-1">
+        <span className="text-violet-300 font-semibold">Running example: </span>
+        Throughout Chapters 1–3 we trace one sentence through every concept.
+        Here in Chapter 2 we tokenize it and place its words in embedding space:{' '}
+        <span className="font-mono text-violet-300">"The cat sat on the mat because it was tired."</span>
+      </div>
+
       {/* Sections 0 & 1 */}
       {content.sections.slice(0, 2).map((section, i) => (
         <div key={i} className="mb-8">
@@ -69,6 +77,8 @@ export default function Chapter02() {
         <div className="interactive-card bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-white mb-2">BPE step-by-step</h3>
           <p className="text-slate-400 text-sm mb-6">
+            The visualizer below is tokenizing our anchor sentence:{' '}
+            <span className="font-mono text-violet-300">"The cat sat on the mat because it was tired."</span>{' '}
             Watch how Byte-Pair Encoding iteratively merges the most frequent adjacent pairs.
           </p>
           <BPEVisualizer />
@@ -134,7 +144,7 @@ export default function Chapter02() {
         </p>
 
         <InfoCard variant="tip" title="What to observe">
-          Points that cluster together have similar meanings. Notice that "dog" and "cat" are close to each other — the model learned this not from a dictionary, but from seeing them used in similar contexts millions of times: "I walked my dog/cat", "my dog/cat is sick", "the dog/cat ran away". Similarly, numbers cluster together, countries cluster together, and verbs of motion cluster together. The embedding space is a map of conceptual similarity, drawn entirely from statistical co-occurrence.
+          The words from our anchor sentence — "cat", "sat", "mat", "tired" — are highlighted with larger spheres. Notice how "cat" and "mat" sit close in the animals/objects region, while "sat" and "was" cluster with other verbs. The model learned this purely from context: "The cat sat on the mat" appeared countless times alongside similar animal-action-location sentences. The embedding space is a map of conceptual similarity drawn entirely from statistical co-occurrence.
         </InfoCard>
 
         <div className="interactive-card bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6">

@@ -22,9 +22,9 @@ export const content: ChapterContent = {
       title: 'The Pretraining Objective',
       body: [
         'GPT-style models are trained with a simple objective: given a sequence of tokens, predict the next token at every position. This is called next-token prediction, or autoregressive language modeling. Crucially, this is self-supervised learning — the labels are already in the data. Every document provides thousands of (context, next-token) training examples at no annotation cost.',
-        'Because we use teacher forcing, the model sees the correct previous tokens during training regardless of its own predictions. A causal mask ensures each position can only attend to earlier positions.',
+        'Because we use teacher forcing, the model sees the correct previous tokens during training regardless of its own predictions. A causal mask ensures each position can only attend to earlier positions. A context window of 1024 tokens means each forward pass attends to up to 1024 previous tokens — increase it to 4096 and you quadruple the attention computation per layer.',
         'The simplicity of this objective is deceptive. Predicting the next word requires understanding syntax, semantics, world knowledge, and reasoning — essentially all of language. The model learns all of this implicitly from the training signal.',
-        'Cross-entropy loss measures how surprised the model is by the actual next token. On a 50,000-token vocabulary, random guessing gives loss ≈ ln(50000) ≈ 10.8. A well-trained GPT-2 achieves ~3.0, meaning it correctly narrows the prediction to ~e³ ≈ 20 plausible next tokens — a 2,500× improvement over random chance.',
+        'Cross-entropy loss measures how surprised the model is by the actual next token. On a 50,000-token vocabulary, random guessing gives loss ≈ ln(50000) ≈ 10.82. A well-trained GPT-2 achieves ~3.0, meaning it correctly narrows the prediction to ~e³ ≈ 20 plausible next tokens — a 2,500× improvement over random chance. The gap between 10.82 and 3.0 is what pretraining buys you.',
       ],
       formulas: [
         {
@@ -42,7 +42,7 @@ export const content: ChapterContent = {
       body: [
         'Building a pretraining corpus involves a multi-stage pipeline: scrape the web, deduplicate, quality-filter, tokenize, then pack into fixed-length chunks. Each stage is critical — skipping deduplication can cause models to memorize repeated text and inflate quality metrics.',
         'Raw text is tokenized using a BPE vocabulary, then packed into fixed-length sequences (typically 2048 or 4096 tokens). Documents are concatenated and split at the sequence boundary, so a single training chunk may span multiple documents.',
-        'Data quality matters enormously. Filtering, deduplication, and domain mixing can have as large an effect on final model quality as architectural choices. The Pile, RedPajama, and FineWeb are examples of carefully curated pretraining corpora.',
+        'Data quality matters enormously. GPT-3 was trained on ~300 billion tokens; the Chinchilla-optimal equivalent for that compute budget would have been a smaller model on even more tokens. Filtering, deduplication, and domain mixing can have as large an effect on final model quality as architectural choices. The Pile, RedPajama, and FineWeb are examples of carefully curated pretraining corpora.',
         'A critical pitfall is data contamination: if benchmark test sets appear in the training data, reported performance numbers are inflated. Responsible training pipelines explicitly remove known benchmarks from pretraining data — and still routinely find accidental contamination during post-hoc audits.',
         'During training, sequences are streamed from disk in shuffled order. Modern training pipelines use data loaders that prefetch batches and overlap I/O with GPU computation to ensure the GPU is never waiting for data.',
       ],
@@ -51,10 +51,10 @@ export const content: ChapterContent = {
       id: 'learning-rate-schedules',
       title: 'Learning Rate Schedules',
       body: [
-        'LLM training typically uses a warmup phase followed by cosine decay. Why warmup? The model starts with random weights — jumping to a large learning rate immediately causes unstable early training, because gradients are large and poorly conditioned. Warmup ramps the LR linearly from near-zero to the peak over thousands of steps, letting the optimizer build reliable momentum estimates first.',
+        'LLM training typically uses a warmup phase followed by cosine decay. Why warmup? The model starts with random weights — jumping to a large learning rate of 0.001 immediately causes unstable early training, because gradients are large and poorly conditioned. A warmup of 100 steps ramps the LR linearly from near-zero to the peak, letting the optimizer build reliable momentum estimates first. Shorten the warmup to 10 steps and early loss spikes become far more likely.',
         'Why cosine decay after warmup? Smooth reduction avoids sudden loss spikes that can occur if you cut the learning rate too abruptly. The cosine curve naturally slows the decay rate as it approaches the minimum, giving the optimizer time to settle into a flat basin rather than bouncing around.',
         'After warmup, the cosine schedule smoothly reduces the LR to a small minimum value. This allows the model to make large updates early in training when it has the most to learn, and fine-grained updates later when converging.',
-        'The peak learning rate, warmup duration, and minimum LR are all critical hyperparameters. Larger models generally require smaller peak LRs to stay stable. Getting these wrong can cause loss spikes that corrupt training runs costing millions of dollars in compute.',
+        'The peak learning rate, warmup duration, and minimum LR are all critical hyperparameters. Larger models generally require smaller peak LRs to stay stable. A learning rate of 0.001 converges in roughly 500 steps on a small model; bump it to 0.01 and the optimizer overshoots, causing the loss to oscillate rather than descend. Getting these wrong can cause loss spikes that corrupt training runs costing millions of dollars in compute.',
       ],
       formulas: [
         {

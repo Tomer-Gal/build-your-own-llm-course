@@ -108,6 +108,9 @@ export default function Chapter01() {
         <p className="text-slate-400 mb-4 leading-relaxed">
           The demo below shows the probability distribution a language model produces at a single token position. Choose a seed phrase, and the chart shows how probability is spread across possible next tokens. Drag the temperature slider to watch the distribution sharpen or flatten in real time.
         </p>
+        <p className="text-slate-400 mb-4 leading-relaxed">
+          Try our anchor sentence: select <span className="font-mono text-violet-300 text-sm">"The cat sat on the"</span> and observe that "mat" is among the top predictions — this is the same sentence we will tokenize in Chapter 2 and visualize as embedding vectors in 3D space.
+        </p>
 
         <InfoCard variant="tip" title="What to observe">
           Watch what happens to the distribution as you move the temperature slider. At very low temperatures (near 0.1) almost all probability collapses onto the single most likely token — the model is maximally confident. At high temperatures (near 3.0) probability spreads nearly uniformly — the model becomes exploratory and unpredictable. This is exactly the trade-off between factual accuracy and creative diversity in real applications.

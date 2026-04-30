@@ -1,255 +1,165 @@
-import { useEffect, useRef, useState } from 'react'
-import * as d3 from 'd3'
-import { EMBEDDINGS_2D, CATEGORY_COLORS, EMBEDDING_CATEGORIES } from '../../data/embeddings-2d'
-import type { EmbeddingCategory } from '../../data/embeddings-2d'
+import { useRef, useState } from 'react'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { OrbitControls, Text } from '@react-three/drei'
+import * as THREE from 'three'
 
-const MARGIN = { top: 20, right: 20, bottom: 40, left: 40 }
-const VIEW_W = 560
-const VIEW_H = 420
+const WORDS_3D = [
+  // Anchor sentence words (prominent cluster, spread along one axis)
+  { word: 'The',     x: -2.0, y:  0.5, z:  0.2, category: 'function' },
+  { word: 'cat',     x:  1.8, y:  1.2, z:  0.3, category: 'animals' },
+  { word: 'sat',     x:  0.1, y: -0.8, z:  1.5, category: 'verbs' },
+  { word: 'on',      x: -1.9, y:  0.2, z:  0.1, category: 'function' },
+  { word: 'mat',     x:  1.6, y:  1.0, z: -0.4, category: 'objects' },
+  { word: 'because', x: -2.2, y: -0.3, z:  0.3, category: 'function' },
+  { word: 'it',      x:  1.7, y:  1.5, z:  0.1, category: 'function' },
+  { word: 'was',     x: -0.3, y: -0.9, z:  1.4, category: 'verbs' },
+  { word: 'tired',   x:  0.8, y: -1.8, z: -0.5, category: 'adjectives' },
+  // Additional words
+  { word: 'dog',     x:  2.1, y:  0.8, z:  0.5, category: 'animals' },
+  { word: 'bird',    x:  2.3, y:  1.4, z:  0.1, category: 'animals' },
+  { word: 'run',     x:  0.3, y: -0.6, z:  1.8, category: 'verbs' },
+  { word: 'king',    x: -1.2, y:  2.8, z:  0.6, category: 'royalty' },
+  { word: 'queen',   x: -0.9, y:  2.5, z:  0.9, category: 'royalty' },
+  { word: 'man',     x: -1.5, y:  2.1, z:  0.2, category: 'people' },
+  { word: 'woman',   x: -1.1, y:  2.3, z:  0.5, category: 'people' },
+  { word: 'apple',   x:  0.5, y: -2.2, z: -1.2, category: 'food' },
+  { word: 'pizza',   x:  0.2, y: -2.5, z: -0.8, category: 'food' },
+  { word: 'happy',   x:  0.6, y: -1.5, z: -0.8, category: 'adjectives' },
+]
 
-interface TooltipState {
-  word: string
-  category: string
-  x: number
-  y: number
-  visible: boolean
+const CATEGORY_COLORS: Record<string, string> = {
+  'function':   '#7a8daa',  // muted — function words are "invisible"
+  'animals':    '#10b981',  // emerald
+  'verbs':      '#6366f1',  // indigo
+  'objects':    '#f59e0b',  // amber
+  'adjectives': '#f43f5e',  // rose
+  'royalty':    '#a78bfa',  // violet
+  'people':     '#22d3ee',  // cyan
+  'food':       '#fb923c',  // orange
 }
 
-export default function EmbeddingSpace3D() {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const [hoveredWord, setHoveredWord] = useState<string | null>(null)
-  const [tooltip, setTooltip] = useState<TooltipState>({
-    word: '',
-    category: '',
-    x: 0,
-    y: 0,
-    visible: false,
-  })
-  const [activeCategories, setActiveCategories] = useState<Set<EmbeddingCategory>>(
-    new Set(EMBEDDING_CATEGORIES)
-  )
+const ANCHOR_WORDS = new Set(['The', 'cat', 'sat', 'on', 'mat', 'because', 'it', 'was', 'tired'])
 
-  const toggleCategory = (cat: EmbeddingCategory) => {
-    setActiveCategories((prev) => {
-      const next = new Set(prev)
-      if (next.has(cat)) {
-        if (next.size > 1) next.delete(cat)
-      } else {
-        next.add(cat)
-      }
-      return next
-    })
-  }
+interface WordPointProps {
+  word: string
+  position: [number, number, number]
+  color: string
+  isAnchor: boolean
+  isHovered: boolean
+  onHover: (word: string | null) => void
+}
 
-  useEffect(() => {
-    const svg = svgRef.current
-    if (!svg) return
+function WordPoint({ word, position, color, isAnchor, isHovered, onHover }: WordPointProps) {
+  const meshRef = useRef<THREE.Mesh>(null)
 
-    const innerW = VIEW_W - MARGIN.left - MARGIN.right
-    const innerH = VIEW_H - MARGIN.top - MARGIN.bottom
-
-    const svgEl = d3.select(svg)
-
-    const xScale = d3.scaleLinear().domain([0, 1]).range([0, innerW])
-    const yScale = d3.scaleLinear().domain([0, 1]).range([innerH, 0])
-
-    let root = svgEl.select<SVGGElement>('g.scatter-root')
-    if (root.empty()) {
-      root = svgEl.append('g').attr('class', 'scatter-root')
-      // Grid lines
-      const gridG = root.append('g').attr('class', 'grid')
-      gridG
-        .selectAll('line.grid-h')
-        .data(d3.range(0, 1.1, 0.2))
-        .enter()
-        .append('line')
-        .attr('class', 'grid-h')
-        .attr('x1', 0)
-        .attr('x2', innerW)
-        .attr('y1', (d) => yScale(d))
-        .attr('y2', (d) => yScale(d))
-        .attr('stroke', '#1e293b')
-        .attr('stroke-width', 1)
-
-      gridG
-        .selectAll('line.grid-v')
-        .data(d3.range(0, 1.1, 0.2))
-        .enter()
-        .append('line')
-        .attr('class', 'grid-v')
-        .attr('x1', (d) => xScale(d))
-        .attr('x2', (d) => xScale(d))
-        .attr('y1', 0)
-        .attr('y2', innerH)
-        .attr('stroke', '#1e293b')
-        .attr('stroke-width', 1)
-
-      // X axis
-      root
-        .append('g')
-        .attr('class', 'x-axis')
-        .attr('transform', `translate(0,${innerH})`)
-        .call(d3.axisBottom(xScale).ticks(5).tickFormat(() => ''))
-        .call((ax) => ax.select('.domain').attr('stroke', '#334155'))
-        .call((ax) => ax.selectAll('line').attr('stroke', '#334155'))
-
-      root
-        .append('text')
-        .attr('x', innerW / 2)
-        .attr('y', innerH + 32)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#64748b')
-        .attr('font-size', 11)
-        .text('Embedding dimension 1 (PCA)')
-
-      // Y axis
-      root
-        .append('g')
-        .attr('class', 'y-axis')
-        .call(d3.axisLeft(yScale).ticks(5).tickFormat(() => ''))
-        .call((ax) => ax.select('.domain').attr('stroke', '#334155'))
-        .call((ax) => ax.selectAll('line').attr('stroke', '#334155'))
-
-      root
-        .append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('x', -innerH / 2)
-        .attr('y', -28)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#64748b')
-        .attr('font-size', 11)
-        .text('Embedding dimension 2 (PCA)')
+  useFrame(() => {
+    if (meshRef.current) {
+      const targetScale = isHovered ? 1.4 : isAnchor ? 1.1 : 0.8
+      meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1)
     }
+  })
 
-    root.attr('transform', `translate(${MARGIN.left},${MARGIN.top})`)
+  return (
+    <group position={position}>
+      <mesh
+        ref={meshRef}
+        onPointerEnter={() => onHover(word)}
+        onPointerLeave={() => onHover(null)}
+      >
+        <sphereGeometry args={[0.12, 16, 16]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={isHovered ? 0.8 : isAnchor ? 0.4 : 0.1}
+          roughness={0.3}
+          metalness={0.4}
+        />
+      </mesh>
+      <Text
+        position={[0, 0.22, 0]}
+        fontSize={isAnchor ? 0.14 : 0.1}
+        color={isHovered ? '#ffffff' : isAnchor ? '#e2e8f0' : '#7a8daa'}
+        anchorX="center"
+        anchorY="bottom"
+        font={undefined}
+      >
+        {word}
+      </Text>
+    </group>
+  )
+}
 
-    const filtered = EMBEDDINGS_2D.filter((d) =>
-      activeCategories.has(d.category as EmbeddingCategory)
-    )
-
-    // Points
-    const circles = root
-      .selectAll<SVGCircleElement, typeof EMBEDDINGS_2D[0]>('circle.word-point')
-      .data(filtered, (d) => d.word)
-
-    circles
-      .enter()
-      .append('circle')
-      .attr('class', 'word-point')
-      .attr('cx', (d) => xScale(d.x))
-      .attr('cy', (d) => yScale(d.y))
-      .attr('r', 0)
-      .merge(circles)
-      .attr('cx', (d) => xScale(d.x))
-      .attr('cy', (d) => yScale(d.y))
-      .attr('fill', (d) => CATEGORY_COLORS[d.category as EmbeddingCategory] ?? '#64748b')
-      .attr('opacity', (d) => (hoveredWord === null || d.word === hoveredWord ? 0.85 : 0.25))
-      .attr('stroke', (d) => (d.word === hoveredWord ? '#fff' : 'transparent'))
-      .attr('stroke-width', 2)
-      .attr('cursor', 'pointer')
-      .attr('role', 'button')
-      .attr('aria-label', (d) => `${d.word} (${d.category})`)
-      .transition()
-      .duration(300)
-      .attr('r', (d) => (d.word === hoveredWord ? 7 : 5))
-
-    circles.exit().transition().duration(200).attr('r', 0).remove()
-
-    // Labels
-    const labels = root
-      .selectAll<SVGTextElement, typeof EMBEDDINGS_2D[0]>('text.word-label')
-      .data(filtered, (d) => d.word)
-
-    labels
-      .enter()
-      .append('text')
-      .attr('class', 'word-label')
-      .merge(labels)
-      .attr('x', (d) => xScale(d.x) + 7)
-      .attr('y', (d) => yScale(d.y) + 4)
-      .attr('font-size', 10)
-      .attr('font-family', 'ui-sans-serif, sans-serif')
-      .attr('fill', (d) => CATEGORY_COLORS[d.category as EmbeddingCategory] ?? '#64748b')
-      .attr('opacity', (d) => (hoveredWord === null || d.word === hoveredWord ? 1 : 0.2))
-      .attr('font-weight', (d) => (d.word === hoveredWord ? '700' : '400'))
-      .attr('pointer-events', 'none')
-      .text((d) => d.word)
-
-    labels.exit().remove()
-
-    // Mouse events via re-selection
-    root
-      .selectAll<SVGCircleElement, typeof EMBEDDINGS_2D[0]>('circle.word-point')
-      .on('mouseenter', function (event: MouseEvent, d) {
-        setHoveredWord(d.word)
-        const rect = svg.getBoundingClientRect()
-        setTooltip({
-          word: d.word,
-          category: d.category,
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top,
-          visible: true,
-        })
-      })
-      .on('mouseleave', () => {
-        setHoveredWord(null)
-        setTooltip((t) => ({ ...t, visible: false }))
-      })
-  }, [activeCategories, hoveredWord])
+const EmbeddingSpace3D: React.FC = () => {
+  const [hoveredWord, setHoveredWord] = useState<string | null>(null)
 
   return (
     <div className="space-y-4">
-      {/* Legend / filter */}
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
-        {EMBEDDING_CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => toggleCategory(cat)}
-            aria-pressed={activeCategories.has(cat)}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-full border transition-all ${
-              activeCategories.has(cat)
-                ? 'border-slate-600 bg-slate-800/60 opacity-100'
-                : 'border-slate-700/30 bg-slate-900/40 opacity-40'
-            }`}
-          >
-            <span
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: CATEGORY_COLORS[cat] }}
-              aria-hidden
-            />
-            <span className="text-slate-300 capitalize">{cat}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Chart */}
-      <div className="relative w-full">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-          width="100%"
-          role="img"
-          aria-label="2D embedding space scatter plot showing word clusters by category"
-          className="rounded-lg bg-slate-900/40"
-        />
-
-        {/* Tooltip */}
-        {tooltip.visible && (
-          <div
-            className="absolute pointer-events-none z-10 px-2.5 py-1.5 text-xs rounded-lg bg-slate-800 border border-slate-700 shadow-xl"
-            style={{ left: tooltip.x + 10, top: tooltip.y - 10 }}
-            role="tooltip"
-          >
-            <span className="font-semibold text-white">{tooltip.word}</span>
-            <span className="text-slate-400 ml-1.5 capitalize">{tooltip.category}</span>
+      {/* Hovered word info panel */}
+      <div className="h-12 flex items-center justify-center">
+        {hoveredWord ? (
+          <div className="text-sm">
+            <span className="text-ink-2">Word vector for </span>
+            <span className="font-mono text-violet-300 font-semibold">"{hoveredWord}"</span>
+            <span className="text-ink-2"> — a point in embedding space</span>
           </div>
+        ) : (
+          <p className="text-xs text-ink-3">Drag to rotate · Scroll to zoom · Hover a word</p>
         )}
       </div>
 
-      <p className="text-xs text-slate-500 leading-relaxed">
-        Words with similar meanings cluster together in embedding space. These are 2D projections
-        of higher-dimensional learned embeddings, grouped by semantic category.
-      </p>
+      {/* 3D Canvas */}
+      <div className="w-full h-96 rounded-xl overflow-hidden bg-surface-0 border border-surface-4">
+        <Canvas camera={{ position: [4, 2, 6], fov: 50 }}>
+          <ambientLight intensity={0.4} />
+          <pointLight position={[10, 10, 10]} intensity={1} />
+          <pointLight position={[-10, -5, -5]} intensity={0.3} color="#7c3aed" />
+
+          {WORDS_3D.map(({ word, x, y, z, category }) => (
+            <WordPoint
+              key={word}
+              word={word}
+              position={[x, y, z]}
+              color={CATEGORY_COLORS[category] ?? '#ffffff'}
+              isAnchor={ANCHOR_WORDS.has(word)}
+              isHovered={hoveredWord === word}
+              onHover={setHoveredWord}
+            />
+          ))}
+
+          <OrbitControls
+            autoRotate
+            autoRotateSpeed={0.5}
+            enableZoom
+            enablePan={false}
+            minDistance={3}
+            maxDistance={12}
+          />
+
+          {/* Subtle grid */}
+          <gridHelper args={[10, 10, '#1a2235', '#1a2235']} position={[0, -2.5, 0]} />
+        </Canvas>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 justify-center">
+        {Object.entries(CATEGORY_COLORS).map(([cat, color]) => (
+          <div key={cat} className="flex items-center gap-1.5 text-xs text-ink-2">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+            {cat}
+          </div>
+        ))}
+      </div>
+
+      {/* The king-queen-man-woman insight */}
+      <div className="bg-surface-2 border border-violet-500/10 rounded-lg p-4 text-sm text-ink-1">
+        <span className="text-violet-300 font-semibold">Key insight: </span>
+        Notice how "cat" and "dog" cluster together, and "king" and "queen" cluster together.
+        The geometric relationship between "king" and "queen" is nearly identical to the relationship
+        between "man" and "woman" — the model learned this purely from context,
+        without being told what gender means.
+      </div>
     </div>
   )
 }
+
+export default EmbeddingSpace3D

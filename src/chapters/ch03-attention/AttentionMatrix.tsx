@@ -3,32 +3,38 @@ import * as d3 from 'd3'
 import { attentionWeights, causalMask } from '../../utils/mathHelpers'
 import Slider from '../../components/Slider'
 
-const TOKENS = ['The', 'cat', 'sat', 'on', 'the', 'mat']
+// Anchor sentence: "The cat sat on the mat because it was [tired]"
+const TOKENS = ['The', 'cat', 'sat', 'on', 'the', 'mat', 'because', 'it', 'was']
 const SEQ_LEN = TOKENS.length
 
-// Pre-set Q/K vectors (3D) per token — crafted to produce interesting attention patterns
+// Pre-set Q/K vectors (4D) per token — crafted to produce interesting attention patterns.
+// Key design: 'it' (index 7) has dim-1 dominant, matching 'cat' (index 1) key,
+// so attentionWeights(Q_VECTORS[7], K_VECTORS, 1.0) gives index 1 ('cat') the highest weight.
 const Q_VECTORS: number[][] = [
-  [0.8, 0.3, -0.2],
-  [0.4, 0.9, 0.1],
-  [0.1, 0.5, 0.8],
-  [-0.3, 0.2, 0.7],
-  [0.7, 0.4, -0.1],
-  [0.2, 0.6, 0.5],
+  [1.0, 0.1, 0.1, 0.1],  // The   - article (dim 0)
+  [0.1, 1.0, 0.2, 0.1],  // cat   - subject (dim 1, hint of dim 2)
+  [0.1, 0.2, 1.0, 0.1],  // sat   - verb (dim 2)
+  [0.1, 0.1, 0.3, 0.9],  // on    - preposition (dim 3)
+  [0.9, 0.2, 0.1, 0.1],  // the   - article (similar to The, dim 0)
+  [0.3, 0.7, 0.2, 0.3],  // mat   - object (mix dim 1+3)
+  [0.1, 0.2, 0.5, 0.8],  // because - connector (dim 2+3)
+  [0.2, 0.9, 0.1, 0.2],  // it    - pronoun (dim 1, slightly different from cat → attends to cat)
+  [0.2, 0.1, 0.8, 0.4],  // was   - verb (dim 2 mix)
 ]
 
-const K_VECTORS: number[][] = [
-  [0.6, 0.2, -0.1],
-  [0.3, 0.8, 0.2],
-  [0.1, 0.4, 0.9],
-  [-0.2, 0.3, 0.6],
-  [0.8, 0.3, 0.0],
-  [0.1, 0.7, 0.4],
-]
+// K_VECTORS same as Q (self-attention)
+const K_VECTORS = Q_VECTORS
 
-const CELL_SIZE = 56
-const LABEL_SIZE = 48
+const CELL_SIZE = 52
+const LABEL_SIZE = 52
 const LEGEND_HEIGHT = 24
 const LEGEND_MARGIN = 16
+const LEFT_MARGIN = LABEL_SIZE
+const TOP_MARGIN = LABEL_SIZE
+
+// Unified color scale — same as MultiHeadViz for consistent reading
+const COLOR_SCALE = (v: number) =>
+  d3.interpolateRgb('#1a2235', '#7c3aed')(v)
 
 function computeAttentionMatrix(temperature: number, useCausalMask: boolean): number[][] {
   const mask = causalMask(SEQ_LEN)
@@ -52,6 +58,8 @@ export default function AttentionMatrix() {
   const svgRef = useRef<SVGSVGElement>(null)
   const [temperature, setTemperature] = useState(1.0)
   const [showCausalMask, setShowCausalMask] = useState(false)
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const hasAnimated = useRef(false)
 
   const matrix = computeAttentionMatrix(temperature, showCausalMask)
 
@@ -64,10 +72,9 @@ export default function AttentionMatrix() {
 
     const svgEl = d3.select(svg)
 
-    // Color scale: dark navy → violet
     const colorScale = d3.scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolateRgb('#1a2235', '#7c3aed'))
+      .interpolator(COLOR_SCALE)
 
     // Flatten matrix for data binding
     const cells: Array<{ row: number; col: number; value: number }> = []
@@ -90,10 +97,6 @@ export default function AttentionMatrix() {
       legendGrad.append('stop').attr('offset', '0%').attr('stop-color', '#1a2235')
       legendGrad.append('stop').attr('offset', '100%').attr('stop-color', '#7c3aed')
 
-      // Row/col highlight overlay groups (rendered first so cells appear on top)
-      g.append('g').attr('class', 'row-highlight')
-      g.append('g').attr('class', 'col-highlight')
-
       // Column labels (Key tokens) at top
       g.selectAll('text.col-label')
         .data(TOKENS)
@@ -103,7 +106,7 @@ export default function AttentionMatrix() {
         .attr('x', (_, i) => LABEL_SIZE + i * CELL_SIZE + CELL_SIZE / 2)
         .attr('y', LABEL_SIZE - 8)
         .attr('text-anchor', 'middle')
-        .attr('font-size', '11px')
+        .attr('font-size', '10px')
         .attr('fill', '#c8d3e8')
         .attr('font-weight', '500')
         .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
@@ -119,7 +122,7 @@ export default function AttentionMatrix() {
         .attr('y', (_, i) => LABEL_SIZE + i * CELL_SIZE + CELL_SIZE / 2)
         .attr('text-anchor', 'end')
         .attr('dominant-baseline', 'middle')
-        .attr('font-size', '11px')
+        .attr('font-size', '10px')
         .attr('fill', '#c8d3e8')
         .attr('font-weight', '500')
         .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
@@ -172,33 +175,12 @@ export default function AttentionMatrix() {
         .text('High')
     }
 
-    // Row/col highlight rectangles (invisible by default)
-    const rowHighlightG = g.select<SVGGElement>('g.row-highlight')
-    const colHighlightG = g.select<SVGGElement>('g.col-highlight')
+    // Cells — use D3 enter/update pattern
+    const rectG = svgEl.select('g.matrix-root')
+      .selectAll<SVGRectElement, (typeof cells)[0]>('rect.attn-cell')
+      .data(cells)
 
-    if (rowHighlightG.select('rect.row-hl').empty()) {
-      rowHighlightG.append('rect').attr('class', 'row-hl')
-        .attr('width', SEQ_LEN * CELL_SIZE)
-        .attr('height', CELL_SIZE)
-        .attr('x', LABEL_SIZE)
-        .attr('fill', 'rgba(124,58,237,0.08)')
-        .attr('pointer-events', 'none')
-        .attr('opacity', 0)
-    }
-    if (colHighlightG.select('rect.col-hl').empty()) {
-      colHighlightG.append('rect').attr('class', 'col-hl')
-        .attr('width', CELL_SIZE)
-        .attr('height', SEQ_LEN * CELL_SIZE)
-        .attr('y', LABEL_SIZE)
-        .attr('fill', 'rgba(124,58,237,0.08)')
-        .attr('pointer-events', 'none')
-        .attr('opacity', 0)
-    }
-
-    // Cells
-    const rectG = g.selectAll<SVGRectElement, (typeof cells)[0]>('rect.attn-cell').data(cells)
-
-    const allRects = rectG
+    const entered = rectG
       .enter()
       .append('rect')
       .attr('class', 'attn-cell')
@@ -211,30 +193,22 @@ export default function AttentionMatrix() {
       .attr('stroke', 'rgba(255,255,255,0.03)')
       .attr('stroke-width', 0.5)
       .attr('fill', '#1a2235')
-      .on('mouseover', function (_, d) {
-        rowHighlightG.select('rect.row-hl')
-          .attr('y', LABEL_SIZE + d.row * CELL_SIZE)
-          .attr('opacity', 1)
-        colHighlightG.select('rect.col-hl')
-          .attr('x', LABEL_SIZE + d.col * CELL_SIZE)
-          .attr('opacity', 1)
-      })
-      .on('mouseout', function () {
-        rowHighlightG.select('rect.row-hl').attr('opacity', 0)
-        colHighlightG.select('rect.col-hl').attr('opacity', 0)
-      })
-      .merge(rectG)
+
+    const allRects = entered.merge(rectG)
 
     allRects
       .attr('x', (d) => LABEL_SIZE + d.col * CELL_SIZE + 1)
       .attr('y', (d) => LABEL_SIZE + d.row * CELL_SIZE + 1)
-      .classed('attn-cell-hot', (d) => !showCausalMask || d.col <= d.row ? d.value > 0.4 : false)
       .transition()
       .duration(400)
       .ease(d3.easeCubicOut)
       .attr('fill', (d) =>
         showCausalMask && d.col > d.row ? '#0d1117' : colorScale(d.value)
       )
+      .attr('opacity', (d) => {
+        if (hoveredRow === null) return 1
+        return d.row === hoveredRow ? 1 : 0.25
+      })
 
     rectG.exit().remove()
 
@@ -268,7 +242,7 @@ export default function AttentionMatrix() {
     }
 
     // Value text labels
-    const valueText = g
+    const valueText = svgEl.select('g.matrix-root')
       .selectAll<SVGTextElement, (typeof cells)[0]>('text.attn-value')
       .data(cells)
 
@@ -293,17 +267,55 @@ export default function AttentionMatrix() {
       .attr('opacity', (d) => {
         const isMasked = showCausalMask && d.col > d.row
         if (isMasked) return 0
+        if (hoveredRow !== null && d.row !== hoveredRow) return 0
         return d.value > 0.12 ? 1 : 0
       })
       .text((d) => (d.value > 0.12 ? d.value.toFixed(2) : ''))
 
     valueText.exit().remove()
-  }, [matrix, showCausalMask])
+
+    // First-mount reveal animation using D3 transitions (GSAP not installed)
+    if (!hasAnimated.current) {
+      hasAnimated.current = true
+      svgEl.selectAll<SVGRectElement, (typeof cells)[0]>('rect.attn-cell')
+        .attr('opacity', 0)
+        .attr('transform', 'scale(0.85)')
+        .transition()
+        .duration(400)
+        .delay((_, i) => {
+          // Stagger from center
+          const row = Math.floor(i / SEQ_LEN)
+          const col = i % SEQ_LEN
+          const centerRow = (SEQ_LEN - 1) / 2
+          const centerCol = (SEQ_LEN - 1) / 2
+          const dist = Math.abs(row - centerRow) + Math.abs(col - centerCol)
+          return dist * 30
+        })
+        .ease(d3.easeBackOut.overshoot(1.4))
+        .attr('opacity', 1)
+        .attr('transform', 'scale(1)')
+    }
+  }, [matrix, showCausalMask, hoveredRow])
 
   const temperatureHint = getTemperatureHint(temperature)
 
   return (
     <div className="space-y-5">
+      {/* Hover callout label */}
+      {hoveredRow !== null ? (
+        <div className="text-sm text-center mb-3 transition-all duration-150">
+          <span className="text-ink-2">Token </span>
+          <span className="font-mono text-violet-300 font-semibold">
+            &ldquo;{TOKENS[hoveredRow]}&rdquo;
+          </span>
+          <span className="text-ink-2"> attends to each position &rarr;</span>
+        </div>
+      ) : (
+        <p className="text-xs text-ink-3 text-center mb-3">
+          Hover any token row to see its attention pattern
+        </p>
+      )}
+
       {/* Causal mask toggle */}
       <div className="flex items-center gap-3">
         <button
@@ -331,20 +343,42 @@ export default function AttentionMatrix() {
         )}
       </div>
 
-      {/* SVG heatmap */}
+      {/* SVG heatmap with React hover overlay */}
       <div
         className="w-full overflow-x-auto"
         role="img"
-        aria-label="Self-attention weight heatmap for a 6-token sequence"
+        aria-label="Self-attention weight heatmap for a 9-token sentence: The cat sat on the mat because it was"
       >
         <svg
           ref={svgRef}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           width="100%"
-          style={{ minWidth: 320, background: 'transparent' }}
+          style={{ minWidth: 380, background: 'transparent' }}
           aria-hidden="true"
-        />
+        >
+          {/* Transparent row-capture overlays for hover — React synthetic events on SVG rects */}
+          {TOKENS.map((_, rowIdx) => (
+            <rect
+              key={rowIdx}
+              x={LEFT_MARGIN}
+              y={TOP_MARGIN + rowIdx * CELL_SIZE}
+              width={TOKENS.length * CELL_SIZE}
+              height={CELL_SIZE}
+              fill="transparent"
+              onMouseEnter={() => setHoveredRow(rowIdx)}
+              onMouseLeave={() => setHoveredRow(null)}
+              style={{ cursor: 'crosshair' }}
+            />
+          ))}
+        </svg>
       </div>
+
+      {/* Coreference callout for "it" */}
+      {hoveredRow === 7 && (
+        <p className="text-cyan-400 text-xs font-mono text-center leading-relaxed">
+          &ldquo;it&rdquo; attends most strongly to &ldquo;cat&rdquo; &mdash; this is coreference resolution. The model learns that &ldquo;it&rdquo; refers to the cat.
+        </p>
+      )}
 
       {/* Temperature slider */}
       <Slider
