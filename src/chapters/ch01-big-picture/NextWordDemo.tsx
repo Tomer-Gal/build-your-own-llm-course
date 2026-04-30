@@ -52,14 +52,17 @@ const SEED_OPTIONS: Record<string, TokenProb[]> = {
 }
 
 const SEED_KEYS = Object.keys(SEED_OPTIONS)
-const MARGIN = { top: 10, right: 80, bottom: 20, left: 90 }
-const BAR_HEIGHT = 28
-const BAR_GAP = 6
+const MARGIN = { top: 10, right: 90, bottom: 28, left: 100 }
+const BAR_HEIGHT = 36
+const BAR_GAP = 8
 
 export default function NextWordDemo() {
   const svgRef = useRef<SVGSVGElement>(null)
   const [seedIndex, setSeedIndex] = useState(0)
   const [temperature, setTemperature] = useState(1.0)
+  // Track whether this is a first render (for bars animating from width=0)
+  const isFirstRender = useRef(true)
+  const prevSeedIndex = useRef(seedIndex)
 
   const seedKey = SEED_KEYS[seedIndex] ?? SEED_KEYS[0]!
   const tokenData = SEED_OPTIONS[seedKey] ?? []
@@ -76,13 +79,24 @@ export default function NextWordDemo() {
     const svgEl = d3.select(svg)
     const width = svg.clientWidth || 480
     const innerWidth = width - MARGIN.left - MARGIN.right
-    const innerHeight = totalHeight - MARGIN.top - MARGIN.bottom
 
     svgEl.attr('viewBox', `0 0 ${width} ${totalHeight}`)
 
     let g = svgEl.select<SVGGElement>('g.chart-root')
     if (g.empty()) {
       g = svgEl.append('g').attr('class', 'chart-root')
+
+      // Define gradient in defs
+      const defs = svgEl.append('defs')
+      const grad = defs.append('linearGradient')
+        .attr('id', 'bar-gradient')
+        .attr('x1', '0%').attr('y1', '0%')
+        .attr('x2', '100%').attr('y2', '0%')
+      grad.append('stop').attr('offset', '0%').attr('stop-color', '#7c3aed')
+      grad.append('stop').attr('offset', '100%').attr('stop-color', '#22d3ee')
+
+      // Grid lines group (behind bars)
+      g.append('g').attr('class', 'grid-lines')
     }
     g.attr('transform', `translate(${MARGIN.left},${MARGIN.top})`)
 
@@ -93,11 +107,33 @@ export default function NextWordDemo() {
       .clamp(true)
 
     const yPositions = tokenData.map((_, i) => i * (BAR_HEIGHT + BAR_GAP))
+    const innerHeight = tokenData.length * (BAR_HEIGHT + BAR_GAP) - BAR_GAP
+
+    // Subtle horizontal grid lines at 25%, 50%, 75%
+    const gridG = g.select<SVGGElement>('g.grid-lines')
+    const gridData = [0.25, 0.5, 0.75]
+    const gridLines = gridG.selectAll<SVGLineElement, number>('line.grid-line').data(gridData)
+    gridLines.enter()
+      .append('line')
+      .attr('class', 'grid-line')
+      .merge(gridLines)
+      .attr('x1', (d) => xScale(d))
+      .attr('y1', 0)
+      .attr('x2', (d) => xScale(d))
+      .attr('y2', innerHeight)
+      .attr('stroke', 'rgba(255,255,255,0.04)')
+      .attr('stroke-dasharray', '3 3')
+      .attr('stroke-width', 1)
+    gridLines.exit().remove()
+
+    // Seed changed? reset bars to 0 first so they animate in
+    const seedChanged = prevSeedIndex.current !== seedIndex
+    prevSeedIndex.current = seedIndex
 
     // Token labels
     const labels = g
-      .selectAll<SVGTextElement, string>('text.token-label')
-      .data(tokenData.map((d) => d.token))
+      .selectAll<SVGTextElement, TokenProb>('text.token-label')
+      .data(tokenData)
     labels
       .enter()
       .append('text')
@@ -107,33 +143,56 @@ export default function NextWordDemo() {
       .attr('y', (_, i) => (yPositions[i] ?? 0) + BAR_HEIGHT / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'end')
-      .attr('fill', (_, i) => (i === maxProbIndex ? '#818cf8' : '#94a3b8'))
-      .attr('font-size', 13)
-      .attr('font-family', 'ui-monospace, monospace')
+      .attr('fill', (_, i) => (i === maxProbIndex ? '#c4b5fd' : '#c8d3e8'))
+      .attr('font-size', '12px')
+      .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
       .attr('font-weight', (_, i) => (i === maxProbIndex ? '600' : '400'))
-      .text((d) => d)
+      .text((d) => d.token)
     labels.exit().remove()
 
-    // Bars
+    // "Most likely" marker (▶) next to top token label
+    const markerData = [maxProbIndex]
+    const markers = g.selectAll<SVGTextElement, number>('text.top-marker').data(markerData)
+    markers.enter()
+      .append('text')
+      .attr('class', 'top-marker')
+      .merge(markers)
+      .attr('x', -MARGIN.left + 4)
+      .attr('y', (i) => (yPositions[i] ?? 0) + BAR_HEIGHT / 2)
+      .attr('dy', '0.35em')
+      .attr('font-size', '10px')
+      .attr('fill', '#7c3aed')
+      .text('▶')
+    markers.exit().remove()
+
+    // Bars — if seed changed or first render, reset to width 0
     const bars = g
       .selectAll<SVGRectElement, number>('rect.prob-bar')
       .data(probs)
-    bars
-      .enter()
+
+    const newBars = bars.enter()
       .append('rect')
       .attr('class', 'prob-bar')
       .attr('rx', 4)
+      .attr('ry', 4)
       .attr('height', BAR_HEIGHT)
       .attr('x', 0)
       .attr('width', 0)
-      .merge(bars)
+
+    const allBars = newBars.merge(bars)
+
+    if (seedChanged || isFirstRender.current) {
+      isFirstRender.current = false
+      allBars.attr('width', 0)
+    }
+
+    allBars
       .attr('y', (_, i) => yPositions[i] ?? 0)
-      .attr('fill', (_, i) =>
-        i === maxProbIndex ? '#6366f1' : '#334155'
-      )
+      .attr('fill', (_, i) => (i === maxProbIndex ? 'url(#bar-gradient)' : 'url(#bar-gradient)'))
+      .attr('opacity', (_, i) => (i === maxProbIndex ? 1 : 0.6))
       .transition()
-      .duration(300)
-      .ease(d3.easeCubicOut)
+      .duration(350)
+      .ease(d3.easeQuadOut)
       .attr('width', (d) => xScale(d))
     bars.exit().remove()
 
@@ -141,6 +200,7 @@ export default function NextWordDemo() {
     const valueLabels = g
       .selectAll<SVGTextElement, number>('text.prob-value')
       .data(probs)
+
     valueLabels
       .enter()
       .append('text')
@@ -148,20 +208,24 @@ export default function NextWordDemo() {
       .merge(valueLabels)
       .attr('y', (_, i) => (yPositions[i] ?? 0) + BAR_HEIGHT / 2)
       .attr('dy', '0.35em')
-      .attr('font-size', 11)
-      .attr('fill', '#94a3b8')
-      .attr('font-family', 'ui-monospace, monospace')
+      .attr('font-size', '11px')
+      .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
       .transition()
-      .duration(300)
-      .attr('x', (d) => xScale(d) + 6)
+      .duration(350)
+      .ease(d3.easeQuadOut)
+      .attr('x', (d) => {
+        const barW = xScale(d)
+        return barW >= 50 ? barW - 6 : barW + 6
+      })
+      .attr('text-anchor', (d) => (xScale(d) >= 50 ? 'end' : 'start'))
+      .attr('fill', (d) => (xScale(d) >= 50 ? 'rgba(255,255,255,0.9)' : '#7c3aed'))
       .tween('text', function (d) {
         const self = this as SVGTextElement
-        const i = d3.interpolateNumber(
-          parseFloat(self.textContent?.replace('%', '') ?? '0'),
-          d * 100
-        )
+        const prevText = self.textContent?.replace('%', '') ?? '0'
+        const prevVal = parseFloat(prevText) || 0
+        const interp = d3.interpolateNumber(prevVal, d * 100)
         return (t: number) => {
-          self.textContent = i(t).toFixed(1) + '%'
+          self.textContent = interp(t).toFixed(1) + '%'
         }
       })
     valueLabels.exit().remove()
@@ -179,16 +243,16 @@ export default function NextWordDemo() {
           .ticks(4)
           .tickFormat((d) => `${(+d * 100).toFixed(0)}%`)
       )
-      .call((ax) => ax.select('.domain').attr('stroke', '#475569'))
-      .call((ax) => ax.selectAll('text').attr('fill', '#64748b').attr('font-size', 10))
-      .call((ax) => ax.selectAll('line').attr('stroke', '#475569'))
-  }, [probs, tokenData, maxProbIndex, totalHeight])
+      .call((ax) => ax.select('.domain').attr('stroke', '#1f2d45'))
+      .call((ax) => ax.selectAll('text').attr('fill', '#7a8daa').attr('font-size', 10))
+      .call((ax) => ax.selectAll('line').attr('stroke', '#1f2d45'))
+  }, [probs, tokenData, maxProbIndex, totalHeight, seedIndex])
 
   return (
     <div className="space-y-6">
       {/* Seed selector */}
       <div>
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+        <label className="block text-sm font-medium text-ink-2 mb-2">
           Seed phrase
         </label>
         <div className="flex flex-wrap gap-2">
@@ -197,10 +261,10 @@ export default function NextWordDemo() {
               key={key}
               onClick={() => setSeedIndex(i)}
               aria-pressed={seedIndex === i}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                 seedIndex === i
-                  ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
-                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                  ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+                  : 'bg-surface-2 hover:bg-surface-3 text-ink-1 border-surface-4'
               }`}
             >
               {key}
@@ -210,12 +274,12 @@ export default function NextWordDemo() {
       </div>
 
       {/* Most likely next token */}
-      <div className="flex items-center gap-3 p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
-        <span className="text-slate-400 text-sm">Most likely next token:</span>
-        <span className="font-mono font-semibold text-indigo-300 text-lg">
+      <div className="flex items-center gap-3 p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg">
+        <span className="text-ink-2 text-sm">Most likely next token:</span>
+        <span className="font-mono font-semibold text-violet-300 text-lg">
           &ldquo;{tokenData[maxProbIndex]?.token ?? '?'}&rdquo;
         </span>
-        <span className="text-slate-500 text-sm ml-auto">
+        <span className="text-ink-3 text-sm ml-auto">
           {(Math.max(...probs) * 100).toFixed(1)}%
         </span>
       </div>
@@ -225,7 +289,7 @@ export default function NextWordDemo() {
         <svg
           ref={svgRef}
           width="100%"
-          style={{ height: totalHeight }}
+          style={{ height: totalHeight, background: 'transparent' }}
           aria-hidden="true"
         />
       </div>
@@ -241,7 +305,7 @@ export default function NextWordDemo() {
         formatValue={(v) => v.toFixed(2)}
       />
 
-      <p className="text-xs text-slate-500 leading-relaxed">
+      <p className="text-xs text-ink-3 leading-relaxed">
         Temperature scales the logits before softmax. Lower values concentrate probability on the top token; higher values spread it more evenly.
       </p>
     </div>

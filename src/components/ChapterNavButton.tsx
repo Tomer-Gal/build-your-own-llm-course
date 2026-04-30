@@ -13,29 +13,36 @@ const ChapterNavButton: React.FC<ChapterNavButtonProps> = ({ currentChapterId, n
   const isLast = !next
 
   return (
-    <div className="mt-16 pt-8 border-t border-slate-700/50">
+    <div className="mt-16 pt-8 border-t border-surface-4">
+
+      {/* What's next teaser */}
       {nextChapterTeaser && next && (
-        <div className="mb-6 flex items-start gap-3 bg-surface-2 border border-slate-700/50 rounded-xl p-4">
-          <span className="text-brand-500 font-bold mt-0.5 flex-shrink-0 text-lg" aria-hidden>→</span>
+        <div className="mb-6 flex items-start gap-4 bg-surface-2 border-l-[3px] border-l-violet-500 border border-surface-4 rounded-xl p-4 pl-5">
+          <div className="flex-shrink-0 mt-0.5 w-6 h-6 rounded-full bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
+            <span className="text-violet-300 text-xs font-bold" aria-hidden>→</span>
+          </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">
+            <p className="text-xs font-bold text-violet-300/70 uppercase tracking-widest mb-1">
               What's next
             </p>
-            <p className="text-sm text-slate-300">{nextChapterTeaser}</p>
+            <p className="text-sm text-ink-1">{nextChapterTeaser}</p>
           </div>
         </div>
       )}
 
       {isLast ? (
-        <div className="text-center py-8">
-          <p className="text-2xl mb-2" aria-hidden>🎉</p>
-          <p className="text-lg font-semibold text-white mb-1">You've completed the course!</p>
-          <p className="text-sm text-slate-400">You now understand how LLMs work from first principles.</p>
-          <Link
-            to="/"
-            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            ← Back to course overview
+        /* Course completion celebration */
+        <div className="text-center py-10 px-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-surface-2 to-teal-500/10 border border-emerald-500/20">
+          <div className="text-3xl mb-3" aria-hidden>🎉</div>
+          <h3 className="text-xl font-bold font-display text-ink-0 mb-2">
+            You've completed the course!
+          </h3>
+          <p className="text-sm text-ink-2 mb-6 max-w-sm mx-auto">
+            You now understand how LLMs work from first principles. Congratulations on making it this far.
+          </p>
+          <Link to="/" className="btn-primary">
+            <span aria-hidden>←</span>
+            Return to Overview
           </Link>
         </div>
       ) : (
@@ -43,13 +50,18 @@ const ChapterNavButton: React.FC<ChapterNavButtonProps> = ({ currentChapterId, n
           {prev ? (
             <Link
               to={prev.route}
-              className="flex items-center gap-2 px-4 py-3 bg-surface-2 hover:bg-surface-3 border border-slate-700/50 rounded-xl text-sm text-slate-400 hover:text-slate-200 transition-colors"
+              className="flex items-center gap-3 px-4 py-3 bg-surface-2 hover:bg-surface-3 border border-surface-4 rounded-xl text-sm text-ink-2 hover:text-ink-1 transition-all duration-200 ease-spring group"
               aria-label={`Previous chapter: ${prev.title}`}
             >
-              <span aria-hidden>←</span>
+              <span
+                className="text-ink-3 group-hover:text-ink-2 transition-colors duration-200"
+                aria-hidden
+              >
+                ←
+              </span>
               <div className="text-left">
-                <div className="text-xs text-slate-500">Previous</div>
-                <div className="font-medium">{prev.emoji} {prev.title}</div>
+                <div className="text-xs text-ink-3 mb-0.5">Previous</div>
+                <div className="font-medium text-ink-1">{prev.emoji} {prev.title}</div>
               </div>
             </Link>
           ) : (
@@ -59,14 +71,24 @@ const ChapterNavButton: React.FC<ChapterNavButtonProps> = ({ currentChapterId, n
           {next && (
             <Link
               to={next.route}
-              className="flex items-center gap-2 px-4 py-3 bg-brand-700/20 hover:bg-brand-700/30 border border-brand-500/30 rounded-xl text-sm text-brand-400 hover:text-brand-300 transition-colors ml-auto"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm ml-auto
+                bg-gradient-to-r from-violet-600/20 to-cyan-500/10
+                border border-violet-500/25 hover:border-violet-500/50
+                text-violet-300 hover:text-violet-200
+                hover:shadow-glow-violet
+                transition-all duration-200 ease-spring group"
               aria-label={`Next chapter: ${next.title}`}
             >
               <div className="text-right">
-                <div className="text-xs text-brand-500/70">Next chapter</div>
+                <div className="text-xs text-violet-400/60 mb-0.5">Next chapter</div>
                 <div className="font-medium">{next.emoji} {next.title}</div>
               </div>
-              <span aria-hidden>→</span>
+              <span
+                className="text-violet-400 group-hover:translate-x-0.5 transition-transform duration-200"
+                aria-hidden
+              >
+                →
+              </span>
             </Link>
           )}
         </div>

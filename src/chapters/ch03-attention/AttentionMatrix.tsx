@@ -27,7 +27,8 @@ const K_VECTORS: number[][] = [
 
 const CELL_SIZE = 56
 const LABEL_SIZE = 48
-const FONT_SIZE = 11
+const LEGEND_HEIGHT = 24
+const LEGEND_MARGIN = 16
 
 function computeAttentionMatrix(temperature: number, useCausalMask: boolean): number[][] {
   const mask = causalMask(SEQ_LEN)
@@ -41,15 +42,21 @@ function computeAttentionMatrix(temperature: number, useCausalMask: boolean): nu
   })
 }
 
+function getTemperatureHint(temperature: number): string {
+  if (temperature < 0.5) return 'High confidence — model has strong preferences'
+  if (temperature <= 1.5) return 'Balanced — natural attention distribution'
+  return 'High entropy — model attends broadly'
+}
+
 export default function AttentionMatrix() {
   const svgRef = useRef<SVGSVGElement>(null)
   const [temperature, setTemperature] = useState(1.0)
-  const [useCausalMask, setUseCausalMask] = useState(false)
+  const [showCausalMask, setShowCausalMask] = useState(false)
 
-  const matrix = computeAttentionMatrix(temperature, useCausalMask)
+  const matrix = computeAttentionMatrix(temperature, showCausalMask)
 
   const svgWidth = LABEL_SIZE + SEQ_LEN * CELL_SIZE + 20
-  const svgHeight = LABEL_SIZE + SEQ_LEN * CELL_SIZE + 20
+  const svgHeight = LABEL_SIZE + SEQ_LEN * CELL_SIZE + LEGEND_MARGIN + LEGEND_HEIGHT + 20
 
   useEffect(() => {
     const svg = svgRef.current
@@ -57,7 +64,10 @@ export default function AttentionMatrix() {
 
     const svgEl = d3.select(svg)
 
-    const colorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, 1])
+    // Color scale: dark navy → violet
+    const colorScale = d3.scaleSequential()
+      .domain([0, 1])
+      .interpolator(d3.interpolateRgb('#1a2235', '#7c3aed'))
 
     // Flatten matrix for data binding
     const cells: Array<{ row: number; col: number; value: number }> = []
@@ -71,6 +81,19 @@ export default function AttentionMatrix() {
     if (g.empty()) {
       g = svgEl.append('g').attr('class', 'matrix-root')
 
+      // SVG defs for legend gradient
+      const defs = svgEl.append('defs')
+      const legendGrad = defs.append('linearGradient')
+        .attr('id', 'attn-legend-gradient')
+        .attr('x1', '0%').attr('y1', '0%')
+        .attr('x2', '100%').attr('y2', '0%')
+      legendGrad.append('stop').attr('offset', '0%').attr('stop-color', '#1a2235')
+      legendGrad.append('stop').attr('offset', '100%').attr('stop-color', '#7c3aed')
+
+      // Row/col highlight overlay groups (rendered first so cells appear on top)
+      g.append('g').attr('class', 'row-highlight')
+      g.append('g').attr('class', 'col-highlight')
+
       // Column labels (Key tokens) at top
       g.selectAll('text.col-label')
         .data(TOKENS)
@@ -80,9 +103,10 @@ export default function AttentionMatrix() {
         .attr('x', (_, i) => LABEL_SIZE + i * CELL_SIZE + CELL_SIZE / 2)
         .attr('y', LABEL_SIZE - 8)
         .attr('text-anchor', 'middle')
-        .attr('font-size', FONT_SIZE)
-        .attr('fill', '#94a3b8')
-        .attr('font-family', 'ui-monospace, monospace')
+        .attr('font-size', '11px')
+        .attr('fill', '#c8d3e8')
+        .attr('font-weight', '500')
+        .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
         .text((d) => d)
 
       // Row labels (Query tokens) at left
@@ -95,9 +119,10 @@ export default function AttentionMatrix() {
         .attr('y', (_, i) => LABEL_SIZE + i * CELL_SIZE + CELL_SIZE / 2)
         .attr('text-anchor', 'end')
         .attr('dominant-baseline', 'middle')
-        .attr('font-size', FONT_SIZE)
-        .attr('fill', '#94a3b8')
-        .attr('font-family', 'ui-monospace, monospace')
+        .attr('font-size', '11px')
+        .attr('fill', '#c8d3e8')
+        .attr('font-weight', '500')
+        .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
         .text((d) => d)
 
       // Axis labels
@@ -106,7 +131,7 @@ export default function AttentionMatrix() {
         .attr('y', 12)
         .attr('text-anchor', 'middle')
         .attr('font-size', 10)
-        .attr('fill', '#64748b')
+        .attr('fill', '#7a8daa')
         .text('Key (attending to →)')
 
       g.append('text')
@@ -115,95 +140,191 @@ export default function AttentionMatrix() {
         .attr('y', 12)
         .attr('text-anchor', 'middle')
         .attr('font-size', 10)
-        .attr('fill', '#64748b')
+        .attr('fill', '#7a8daa')
         .text('Query (from ↓)')
+
+      // Legend bar
+      const legendY = LABEL_SIZE + SEQ_LEN * CELL_SIZE + LEGEND_MARGIN
+      const legendX = LABEL_SIZE
+      const legendW = SEQ_LEN * CELL_SIZE
+      g.append('rect')
+        .attr('x', legendX)
+        .attr('y', legendY)
+        .attr('width', legendW)
+        .attr('height', LEGEND_HEIGHT - 8)
+        .attr('rx', 3)
+        .attr('fill', 'url(#attn-legend-gradient)')
+        .attr('opacity', 0.8)
+      g.append('text')
+        .attr('x', legendX)
+        .attr('y', legendY + LEGEND_HEIGHT)
+        .attr('font-size', 9)
+        .attr('fill', '#7a8daa')
+        .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
+        .text('Low')
+      g.append('text')
+        .attr('x', legendX + legendW)
+        .attr('y', legendY + LEGEND_HEIGHT)
+        .attr('font-size', 9)
+        .attr('fill', '#7a8daa')
+        .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
+        .attr('text-anchor', 'end')
+        .text('High')
+    }
+
+    // Row/col highlight rectangles (invisible by default)
+    const rowHighlightG = g.select<SVGGElement>('g.row-highlight')
+    const colHighlightG = g.select<SVGGElement>('g.col-highlight')
+
+    if (rowHighlightG.select('rect.row-hl').empty()) {
+      rowHighlightG.append('rect').attr('class', 'row-hl')
+        .attr('width', SEQ_LEN * CELL_SIZE)
+        .attr('height', CELL_SIZE)
+        .attr('x', LABEL_SIZE)
+        .attr('fill', 'rgba(124,58,237,0.08)')
+        .attr('pointer-events', 'none')
+        .attr('opacity', 0)
+    }
+    if (colHighlightG.select('rect.col-hl').empty()) {
+      colHighlightG.append('rect').attr('class', 'col-hl')
+        .attr('width', CELL_SIZE)
+        .attr('height', SEQ_LEN * CELL_SIZE)
+        .attr('y', LABEL_SIZE)
+        .attr('fill', 'rgba(124,58,237,0.08)')
+        .attr('pointer-events', 'none')
+        .attr('opacity', 0)
     }
 
     // Cells
-    const rectG = g.selectAll<SVGRectElement, typeof cells[0]>('rect.attn-cell').data(cells)
+    const rectG = g.selectAll<SVGRectElement, (typeof cells)[0]>('rect.attn-cell').data(cells)
 
-    rectG
+    const allRects = rectG
       .enter()
       .append('rect')
       .attr('class', 'attn-cell')
-      .attr('x', (d) => LABEL_SIZE + d.col * CELL_SIZE)
-      .attr('y', (d) => LABEL_SIZE + d.row * CELL_SIZE)
+      .attr('x', (d) => LABEL_SIZE + d.col * CELL_SIZE + 1)
+      .attr('y', (d) => LABEL_SIZE + d.row * CELL_SIZE + 1)
       .attr('width', CELL_SIZE - 2)
       .attr('height', CELL_SIZE - 2)
-      .attr('rx', 3)
+      .attr('rx', 4)
+      .attr('ry', 4)
+      .attr('stroke', 'rgba(255,255,255,0.03)')
+      .attr('stroke-width', 0.5)
+      .attr('fill', '#1a2235')
+      .on('mouseover', function (_, d) {
+        rowHighlightG.select('rect.row-hl')
+          .attr('y', LABEL_SIZE + d.row * CELL_SIZE)
+          .attr('opacity', 1)
+        colHighlightG.select('rect.col-hl')
+          .attr('x', LABEL_SIZE + d.col * CELL_SIZE)
+          .attr('opacity', 1)
+      })
+      .on('mouseout', function () {
+        rowHighlightG.select('rect.row-hl').attr('opacity', 0)
+        colHighlightG.select('rect.col-hl').attr('opacity', 0)
+      })
       .merge(rectG)
+
+    allRects
+      .attr('x', (d) => LABEL_SIZE + d.col * CELL_SIZE + 1)
+      .attr('y', (d) => LABEL_SIZE + d.row * CELL_SIZE + 1)
+      .classed('attn-cell-hot', (d) => !showCausalMask || d.col <= d.row ? d.value > 0.4 : false)
       .transition()
-      .duration(250)
+      .duration(400)
       .ease(d3.easeCubicOut)
       .attr('fill', (d) =>
-        useCausalMask && d.col > d.row ? '#1e293b' : colorScale(d.value)
+        showCausalMask && d.col > d.row ? '#0d1117' : colorScale(d.value)
       )
 
     rectG.exit().remove()
 
-    // Masked overlay (X mark)
-    const maskedCells = cells.filter((d) => useCausalMask && d.col > d.row)
-    const maskedText = g
-      .selectAll<SVGTextElement, typeof cells[0]>('text.masked-x')
-      .data(maskedCells, (d) => `${d.row}-${d.col}`)
+    // Remove old masked text/lines
+    g.selectAll('text.masked-x').remove()
+    g.selectAll('line.masked-line').remove()
 
-    maskedText
-      .enter()
-      .append('text')
-      .attr('class', 'masked-x')
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'middle')
-      .attr('font-size', 14)
-      .attr('fill', '#475569')
-      .merge(maskedText)
-      .attr('x', (d) => LABEL_SIZE + d.col * CELL_SIZE + (CELL_SIZE - 2) / 2)
-      .attr('y', (d) => LABEL_SIZE + d.row * CELL_SIZE + (CELL_SIZE - 2) / 2)
-      .text('✕')
-
-    maskedText.exit().remove()
+    // Masked X pattern: two diagonal SVG lines
+    if (showCausalMask) {
+      const maskedCells = cells.filter((d) => d.col > d.row)
+      maskedCells.forEach((d) => {
+        const x0 = LABEL_SIZE + d.col * CELL_SIZE + 3
+        const y0 = LABEL_SIZE + d.row * CELL_SIZE + 3
+        const x1 = LABEL_SIZE + (d.col + 1) * CELL_SIZE - 3
+        const y1 = LABEL_SIZE + (d.row + 1) * CELL_SIZE - 3
+        g.append('line').attr('class', 'masked-line')
+          .attr('x1', x0).attr('y1', y0)
+          .attr('x2', x1).attr('y2', y1)
+          .attr('stroke', '#f43f5e')
+          .attr('stroke-opacity', 0.35)
+          .attr('stroke-width', 1)
+          .attr('pointer-events', 'none')
+        g.append('line').attr('class', 'masked-line')
+          .attr('x1', x1).attr('y1', y0)
+          .attr('x2', x0).attr('y2', y1)
+          .attr('stroke', '#f43f5e')
+          .attr('stroke-opacity', 0.35)
+          .attr('stroke-width', 1)
+          .attr('pointer-events', 'none')
+      })
+    }
 
     // Value text labels
     const valueText = g
-      .selectAll<SVGTextElement, typeof cells[0]>('text.attn-value')
+      .selectAll<SVGTextElement, (typeof cells)[0]>('text.attn-value')
       .data(cells)
 
-    valueText
+    const allText = valueText
       .enter()
       .append('text')
       .attr('class', 'attn-value')
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
-      .attr('font-size', 9)
-      .attr('font-family', 'ui-monospace, monospace')
+      .attr('font-size', '9px')
+      .attr('font-family', 'JetBrains Mono, ui-monospace, monospace')
+      .attr('pointer-events', 'none')
       .merge(valueText)
+
+    allText
       .attr('x', (d) => LABEL_SIZE + d.col * CELL_SIZE + (CELL_SIZE - 2) / 2)
       .attr('y', (d) => LABEL_SIZE + d.row * CELL_SIZE + (CELL_SIZE - 2) / 2)
-      .attr('fill', (d) => (d.value > 0.5 ? '#1e3a5f' : '#94a3b8'))
-      .attr('display', (d) =>
-        !useCausalMask || d.col <= d.row ? 'block' : 'none'
-      )
-      .text((d) => (d.value > 0.1 ? d.value.toFixed(2) : ''))
-  }, [matrix, useCausalMask])
+      .attr('fill', 'rgba(255,255,255,0.7)')
+      .transition()
+      .duration(400)
+      .ease(d3.easeCubicOut)
+      .attr('opacity', (d) => {
+        const isMasked = showCausalMask && d.col > d.row
+        if (isMasked) return 0
+        return d.value > 0.12 ? 1 : 0
+      })
+      .text((d) => (d.value > 0.12 ? d.value.toFixed(2) : ''))
+
+    valueText.exit().remove()
+  }, [matrix, showCausalMask])
+
+  const temperatureHint = getTemperatureHint(temperature)
 
   return (
     <div className="space-y-5">
       {/* Causal mask toggle */}
       <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="causal-mask-toggle"
-          checked={useCausalMask}
-          onChange={(e) => setUseCausalMask(e.target.checked)}
-          aria-label="Toggle causal mask"
-          className="w-4 h-4 accent-indigo-500 cursor-pointer"
-        />
+        <button
+          role="switch"
+          aria-checked={showCausalMask}
+          onClick={() => setShowCausalMask(v => !v)}
+          className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${
+            showCausalMask ? 'bg-violet-600' : 'bg-surface-3'
+          }`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+            showCausalMask ? 'translate-x-5' : 'translate-x-0'
+          }`} />
+        </button>
         <label
-          htmlFor="causal-mask-toggle"
-          className="text-sm font-medium text-slate-300 cursor-pointer select-none"
+          className="text-sm font-medium text-ink-1 cursor-pointer select-none"
+          onClick={() => setShowCausalMask(v => !v)}
         >
           Apply causal mask
         </label>
-        {useCausalMask && (
+        {showCausalMask && (
           <span className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
             Autoregressive mode
           </span>
@@ -220,7 +341,7 @@ export default function AttentionMatrix() {
           ref={svgRef}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           width="100%"
-          style={{ minWidth: 320 }}
+          style={{ minWidth: 320, background: 'transparent' }}
           aria-hidden="true"
         />
       </div>
@@ -236,10 +357,15 @@ export default function AttentionMatrix() {
         formatValue={(v) => v.toFixed(2)}
       />
 
-      <p className="text-xs text-slate-500 leading-relaxed">
-        Darker blue = stronger attention. Cells show weight values when &gt; 0.1.
+      {/* Temperature effect indicator */}
+      <p className="text-cyan-400 text-xs font-mono text-center mt-3">
+        {temperatureHint}
+      </p>
+
+      <p className="text-xs text-ink-3 leading-relaxed">
+        Darker violet = stronger attention. Cells show weight values when &gt; 0.12.
         Lower temperature sharpens the distribution; higher temperature makes it more uniform.
-        {useCausalMask && ' Gray ✕ cells are masked (future positions).'}
+        {showCausalMask && ' Red ✕ cells are masked (future positions).'}
       </p>
     </div>
   )

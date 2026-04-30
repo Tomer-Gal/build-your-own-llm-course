@@ -29,6 +29,7 @@ const Slider: React.FC<SliderProps> = ({
 }) => {
   const id = useId()
   const displayValue = formatValue ? formatValue(value) : value.toFixed(2)
+  const pct = ((value - min) / (max - min)) * 100
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(parseFloat(e.target.value))
@@ -36,14 +37,47 @@ const Slider: React.FC<SliderProps> = ({
 
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
+      {/* Scoped thumb styling — gradient + glow shadow on the webkit thumb */}
+      <style>{`
+        #${CSS.escape(id)}::-webkit-slider-thumb {
+          background: linear-gradient(135deg, #a78bfa, #7c3aed);
+          box-shadow: 0 0 0 3px rgba(124,58,237,0.2), 0 2px 4px rgba(0,0,0,0.4);
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          appearance: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+          transition: box-shadow 150ms ease;
+        }
+        #${CSS.escape(id)}::-webkit-slider-thumb:hover {
+          box-shadow: 0 0 0 5px rgba(124,58,237,0.25), 0 2px 6px rgba(0,0,0,0.5);
+        }
+        #${CSS.escape(id)}::-moz-range-thumb {
+          background: linear-gradient(135deg, #a78bfa, #7c3aed);
+          box-shadow: 0 0 0 3px rgba(124,58,237,0.2), 0 2px 4px rgba(0,0,0,0.4);
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+        }
+      `}</style>
+
+      {/* Label row */}
       <div className="flex items-center justify-between text-sm">
-        <label htmlFor={id} className="text-slate-300 font-medium">
+        <label htmlFor={id} className="text-ink-1 font-medium">
           {label}
         </label>
-        <span className="text-brand-500 font-mono font-medium" aria-live="polite">
+        <span
+          className="text-cyan-400 font-mono font-medium tabular-nums"
+          aria-live="polite"
+        >
           {displayValue}
         </span>
       </div>
+
+      {/* Track + thumb */}
       <input
         id={id}
         type="range"
@@ -57,15 +91,25 @@ const Slider: React.FC<SliderProps> = ({
         aria-valuemax={max}
         aria-valuenow={value}
         aria-valuetext={displayValue}
-        className="w-full h-2 bg-surface-3 rounded-full appearance-none cursor-pointer
-          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
-          [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full
-          [&::-webkit-slider-thumb]:bg-brand-500 [&::-webkit-slider-thumb]:cursor-pointer
-          [&::-webkit-slider-thumb]:shadow-md
-          focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
+        className="w-full h-2 rounded-full appearance-none cursor-pointer
+          [&::-webkit-slider-thumb]:appearance-none
+          [&::-webkit-slider-thumb]:w-5
+          [&::-webkit-slider-thumb]:h-5
+          [&::-webkit-slider-thumb]:rounded-full
+          [&::-webkit-slider-thumb]:cursor-pointer
+          focus:outline-none
+          focus-visible:ring-2
+          focus-visible:ring-violet-500
+          focus-visible:ring-offset-2
           focus-visible:ring-offset-surface-1"
+        style={{
+          background: `linear-gradient(to right, #7c3aed ${pct}%, #1a2235 ${pct}%)`,
+          // Thumb styling via CSS custom properties fallback — actual webkit thumb styled via className above
+        }}
       />
-      <div className="flex justify-between text-xs text-slate-500">
+
+      {/* Hint labels */}
+      <div className="flex justify-between text-xs text-ink-3">
         {hint ? (
           <>
             <span>← {hint.left}</span>
@@ -78,8 +122,10 @@ const Slider: React.FC<SliderProps> = ({
           </>
         )}
       </div>
+
+      {/* Explanation */}
       {explanation && (
-        <p className="text-xs text-slate-500 mt-1">{explanation}</p>
+        <p className="text-ink-2 text-xs italic mt-1">{explanation}</p>
       )}
     </div>
   )

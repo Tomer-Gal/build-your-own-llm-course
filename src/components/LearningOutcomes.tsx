@@ -1,30 +1,65 @@
 import React from 'react'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 
 interface LearningOutcomesProps {
   outcomes: string[]
 }
 
 const LearningOutcomes: React.FC<LearningOutcomesProps> = ({ outcomes }) => {
+  const shouldReduce = useReducedMotion()
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: shouldReduce ? 0 : 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15, duration: 0.4 }}
-      className="bg-surface-2 border border-slate-700/50 rounded-xl p-5 mb-10"
+      transition={{ delay: 0.15, duration: 0.45, ease: 'easeOut' }}
+      className="interactive-card mb-10"
       aria-label="Learning outcomes"
     >
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">
-        By the end of this chapter you will:
-      </p>
-      <ul className="space-y-2">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-base" aria-hidden>✦</span>
+        <p className="text-xs font-bold text-violet-300 uppercase tracking-widest">
+          In this chapter
+        </p>
+      </div>
+
+      {/* Outcome list */}
+      <motion.ul
+        className="space-y-3"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: {},
+          visible: {
+            transition: {
+              staggerChildren: shouldReduce ? 0 : 0.05,
+              delayChildren: 0.25,
+            },
+          },
+        }}
+      >
         {outcomes.map((outcome, i) => (
-          <li key={i} className="flex items-start gap-2.5 text-sm text-slate-300">
-            <span className="text-brand-500 font-bold mt-0.5 flex-shrink-0" aria-hidden>✓</span>
-            <span>{outcome}</span>
-          </li>
+          <motion.li
+            key={i}
+            variants={{
+              hidden: { opacity: 0, x: shouldReduce ? 0 : -8 },
+              visible: { opacity: 1, x: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+            }}
+            className="flex items-start gap-3"
+          >
+            {/* Custom checkmark icon */}
+            <span
+              className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center
+                bg-violet-500/20 border border-violet-500/40 text-violet-300 text-xs font-bold leading-none"
+              aria-hidden
+            >
+              ✓
+            </span>
+            <span className="text-ink-1 text-sm leading-relaxed">{outcome}</span>
+          </motion.li>
         ))}
-      </ul>
+      </motion.ul>
     </motion.div>
   )
 }
