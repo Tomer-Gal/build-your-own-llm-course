@@ -1,4 +1,4 @@
-import{r as g,j as e}from"./index-DFdBOsRC.js";const f=({label:i,value:s,onChange:x,min:a,max:n,step:p=.01,formatValue:o,hint:t,explanation:l,className:b=""})=>{const r=g.useId(),d=o?o(s):s.toFixed(2),c=(s-a)/(n-a)*100,u=h=>{x(parseFloat(h.target.value))};return e.jsxs("div",{className:`flex flex-col gap-2 ${b}`,children:[e.jsx("style",{children:`
+import{r as g,j as e}from"./index-DLQmGi1z.js";const f=({label:i,value:s,onChange:x,min:a,max:n,step:p=.01,formatValue:o,hint:t,explanation:l,className:b=""})=>{const r=g.useId(),d=o?o(s):s.toFixed(2),c=(s-a)/(n-a)*100,u=h=>{x(parseFloat(h.target.value))};return e.jsxs("div",{className:`flex flex-col gap-2 ${b}`,children:[e.jsx("style",{children:`
         #${CSS.escape(r)}::-webkit-slider-thumb {
           background: linear-gradient(135deg, #a78bfa, #7c3aed);
           box-shadow: 0 0 0 3px rgba(124,58,237,0.2), 0 2px 4px rgba(0,0,0,0.4);
