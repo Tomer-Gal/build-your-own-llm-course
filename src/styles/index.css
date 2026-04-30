@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-surface-0 text-slate-100;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
+
+  code {
+    @apply font-mono text-sm bg-surface-2 px-1.5 py-0.5 rounded;
+  }
+
+  pre code {
+    @apply bg-transparent p-0;
+  }
+}
+
+@layer components {
+  .lesson-prose {
+    @apply text-slate-300 leading-relaxed text-base;
+  }
+
+  .lesson-prose p {
+    @apply mb-4;
+  }
+
+  .lesson-prose h2 {
+    @apply text-2xl text-white mb-3 mt-8;
+  }
+
+  .lesson-prose h3 {
+    @apply text-lg text-slate-100 mb-2 mt-6;
+  }
+
+  .interactive-card {
+    @apply bg-surface-2 border border-slate-700/50 rounded-xl p-6;
+  }
+
+  .chapter-link {
+    @apply flex items-start gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150;
+    @apply hover:bg-surface-2;
+  }
+
+  .chapter-link.active {
+    @apply bg-brand-700/20 text-brand-500;
+  }
+}
+
+/* KaTeX override for dark theme */
+.katex {
+  color: #e2e8f0;
+}
+
+.katex-display {
+  @apply my-6 overflow-x-auto;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-surface-1;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-600 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-500;
+}
