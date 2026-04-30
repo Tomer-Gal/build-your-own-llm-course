@@ -2,6 +2,8 @@ import React, { useEffect } from 'react'
 import { getChapter } from '../../data/chapters'
 import { markVisited } from '../../utils/progress'
 import ChapterHeader from '../../components/ChapterHeader'
+import LearningOutcomes from '../../components/LearningOutcomes'
+import ChapterNavButton from '../../components/ChapterNavButton'
 import InfoCard from '../../components/InfoCard'
 import SectionDivider from '../../components/SectionDivider'
 import MathBlock from '../../components/MathBlock'
@@ -19,6 +21,15 @@ const Ch05Pretraining: React.FC = () => {
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       <ChapterHeader chapter={chapter} totalChapters={9} />
+
+      <LearningOutcomes
+        outcomes={[
+          'Explain why next-token prediction is self-supervised',
+          'Describe how learning rate schedules stabilize training',
+          'Interpret a loss curve and identify overfitting vs underfitting',
+          'Understand how Chinchilla scaling laws guide training decisions',
+        ]}
+      />
 
       {/* Pretraining Objective */}
       <section id={content.sections[0].id} className="mb-10">
@@ -69,8 +80,18 @@ const Ch05Pretraining: React.FC = () => {
           </div>
         ))}
 
+        <h3 className="text-lg font-semibold text-white mb-3">Training Dynamics Simulator</h3>
+        <p className="text-slate-300 leading-relaxed mb-4">
+          The simulator below lets you explore how learning rate and warmup interact during training.
+          Adjust the sliders and observe how the loss curve evolves — a critical skill for debugging
+          real training runs.
+        </p>
+
+        <InfoCard variant="tip" title="What to observe">
+          Try increasing the learning rate — you'll see the loss drop faster initially but become noisier. Try zero warmup steps — the loss often spikes before stabilizing. This mirrors real training instabilities that researchers encounter when scaling models.
+        </InfoCard>
+
         <div className="interactive-card bg-surface-2 border border-slate-700/50 rounded-xl p-6 my-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Training Dynamics Simulator</h3>
           <TrainingDynamics />
         </div>
       </section>
@@ -91,15 +112,42 @@ const Ch05Pretraining: React.FC = () => {
           </div>
         ))}
 
+        <h3 className="text-lg font-semibold text-white mb-3">Loss Landscape Explorer</h3>
+        <p className="text-slate-300 leading-relaxed mb-4">
+          The actual loss landscape of a large model has millions of dimensions — far beyond what
+          any visualization can show. This 2D slice is a teaching tool: it builds intuition about
+          local minima, saddle points, and why flat minima (wide valleys) generalize better than
+          sharp ones. When you see an optimizer "escape" a local minimum in the visualization,
+          think of gradient noise acting on a billion-dimensional surface.
+        </p>
+
         <InfoCard variant="tip" title="The loss landscape is high-dimensional">
           The 2D contour plot below is a simplified illustration. Real LLMs have billions of parameters — you cannot visualize the actual loss landscape. Researchers study 2D slices (e.g., loss sharpness / flatness) to gain intuition, but the full geometry is far beyond human perception.
         </InfoCard>
 
         <div className="interactive-card bg-surface-2 border border-slate-700/50 rounded-xl p-6 my-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Loss Landscape Explorer</h3>
           <LossSurface3D />
         </div>
       </section>
+
+      <SectionDivider />
+
+      {/* Scaling Laws */}
+      <section id={content.sections[4].id} className="mb-10">
+        <h2 className="text-2xl font-bold text-white mb-4">{content.sections[4].title}</h2>
+        {content.sections[4].body.map((para, i) => (
+          <p key={i} className="text-slate-300 leading-relaxed mb-4">{para}</p>
+        ))}
+
+        <InfoCard variant="concept" title="Chinchilla finding in one sentence">
+          Most models released before 2022 were too large and undertrained. The compute-optimal strategy is to train a smaller model on more tokens — not to maximize parameter count.
+        </InfoCard>
+      </section>
+
+      <ChapterNavButton
+        currentChapterId={5}
+        nextChapterTeaser="Chapter 6 tackles a practical problem: pretraining a model costs millions of dollars. Fine-tuning efficiently — using LoRA — costs almost nothing."
+      />
     </article>
   )
 }

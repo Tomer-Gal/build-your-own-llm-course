@@ -21,9 +21,10 @@ export const content: ChapterContent = {
       id: 'pretraining-objective',
       title: 'The Pretraining Objective',
       body: [
-        'GPT-style models are trained with a simple objective: given a sequence of tokens, predict the next token at every position. This is called next-token prediction, or autoregressive language modeling.',
+        'GPT-style models are trained with a simple objective: given a sequence of tokens, predict the next token at every position. This is called next-token prediction, or autoregressive language modeling. Crucially, this is self-supervised learning — the labels are already in the data. Every document provides thousands of (context, next-token) training examples at no annotation cost.',
         'Because we use teacher forcing, the model sees the correct previous tokens during training regardless of its own predictions. A causal mask ensures each position can only attend to earlier positions.',
         'The simplicity of this objective is deceptive. Predicting the next word requires understanding syntax, semantics, world knowledge, and reasoning — essentially all of language. The model learns all of this implicitly from the training signal.',
+        'Cross-entropy loss measures how surprised the model is by the actual next token. On a 50,000-token vocabulary, random guessing gives loss ≈ ln(50000) ≈ 10.8. A well-trained GPT-2 achieves ~3.0, meaning it correctly narrows the prediction to ~e³ ≈ 20 plausible next tokens — a 2,500× improvement over random chance.',
       ],
       formulas: [
         {
@@ -39,18 +40,21 @@ export const content: ChapterContent = {
       id: 'data-pipelines',
       title: 'Data Pipelines',
       body: [
-        'Raw text is first tokenized using a BPE vocabulary, then packed into fixed-length sequences (typically 2048 or 4096 tokens). Documents are concatenated and split at the sequence boundary.',
-        'During training, sequences are streamed from disk in shuffled order. Modern training pipelines use data loaders that prefetch batches and overlap I/O with GPU computation.',
+        'Building a pretraining corpus involves a multi-stage pipeline: scrape the web, deduplicate, quality-filter, tokenize, then pack into fixed-length chunks. Each stage is critical — skipping deduplication can cause models to memorize repeated text and inflate quality metrics.',
+        'Raw text is tokenized using a BPE vocabulary, then packed into fixed-length sequences (typically 2048 or 4096 tokens). Documents are concatenated and split at the sequence boundary, so a single training chunk may span multiple documents.',
         'Data quality matters enormously. Filtering, deduplication, and domain mixing can have as large an effect on final model quality as architectural choices. The Pile, RedPajama, and FineWeb are examples of carefully curated pretraining corpora.',
+        'A critical pitfall is data contamination: if benchmark test sets appear in the training data, reported performance numbers are inflated. Responsible training pipelines explicitly remove known benchmarks from pretraining data — and still routinely find accidental contamination during post-hoc audits.',
+        'During training, sequences are streamed from disk in shuffled order. Modern training pipelines use data loaders that prefetch batches and overlap I/O with GPU computation to ensure the GPU is never waiting for data.',
       ],
     },
     {
       id: 'learning-rate-schedules',
       title: 'Learning Rate Schedules',
       body: [
-        'LLM training typically uses a warmup phase followed by cosine decay. During warmup, the learning rate ramps linearly from near-zero to the peak value. This prevents early instability when weights are randomly initialized.',
+        'LLM training typically uses a warmup phase followed by cosine decay. Why warmup? The model starts with random weights — jumping to a large learning rate immediately causes unstable early training, because gradients are large and poorly conditioned. Warmup ramps the LR linearly from near-zero to the peak over thousands of steps, letting the optimizer build reliable momentum estimates first.',
+        'Why cosine decay after warmup? Smooth reduction avoids sudden loss spikes that can occur if you cut the learning rate too abruptly. The cosine curve naturally slows the decay rate as it approaches the minimum, giving the optimizer time to settle into a flat basin rather than bouncing around.',
         'After warmup, the cosine schedule smoothly reduces the LR to a small minimum value. This allows the model to make large updates early in training when it has the most to learn, and fine-grained updates later when converging.',
-        'The peak learning rate, warmup duration, and minimum LR are all critical hyperparameters. Larger models generally require smaller peak LRs. Getting these wrong can cause loss spikes or slow convergence.',
+        'The peak learning rate, warmup duration, and minimum LR are all critical hyperparameters. Larger models generally require smaller peak LRs to stay stable. Getting these wrong can cause loss spikes that corrupt training runs costing millions of dollars in compute.',
       ],
       formulas: [
         {
@@ -77,6 +81,16 @@ export const content: ChapterContent = {
           description:
             'AdamW parameter update. m-hat and v-hat are bias-corrected first and second moment estimates of the gradient. The adaptive denominator normalizes the step size per parameter.',
         },
+      ],
+    },
+    {
+      id: 'scaling-laws',
+      title: 'Scaling Laws',
+      body: [
+        'How large should a model be, and how many tokens should you train on? The Chinchilla scaling laws (Hoffmann et al., 2022) provide empirical answers: for a given compute budget, the optimal model size and token count follow a power law relationship, and both should scale equally.',
+        'The key finding upended common practice: most large models were undertrained, not undersized. GPT-3 (175B parameters) was trained on 300B tokens, but the Chinchilla-optimal choice for that compute budget would be a 70B model trained on 1.4T tokens. The smaller, better-trained model matches or beats the larger one.',
+        'Scaling laws let researchers predict model performance before training. By plotting loss against FLOPs on small runs, you can fit a power-law curve and extrapolate to larger scales — avoiding expensive surprises.',
+        'Frontier models now train well beyond Chinchilla-optimal token counts, because inference is cheap relative to training. A model trained on 10T tokens instead of 1.4T will be slower to train but faster and cheaper to serve at scale.',
       ],
     },
   ],

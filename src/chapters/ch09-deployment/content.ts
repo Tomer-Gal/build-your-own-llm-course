@@ -20,20 +20,28 @@ export const content: Ch09Content = {
   ],
   sections: [
     {
-      heading: 'KV Cache: Avoiding Redundant Computation',
-      body: 'During autoregressive generation, each new token attends to all previous tokens. Without caching, every generation step would recompute the Key and Value projections for every previous token — O(n²) work per sequence. The KV cache stores these computed K and V tensors, so each new step only needs to compute K and V for the single new token. This reduces generation from O(n²) to O(n), making long sequences practical.',
+      heading: 'KV Cache: From O(n²) to O(n)',
+      body: 'During inference, the transformer computes attention over all past tokens at every generation step. For a 1,000-token context, that means 1,000 attention computations per new token — and most are redundant, since the past tokens haven\'t changed. The KV cache stores the Key and Value matrices for all past tokens after they\'re computed once. Each new token only needs to compute its own K and V, then attend to the cached past. This reduces per-step computation from O(n²) to O(n), making long contexts practical. The trade-off is memory: a KV cache for a 70B model with a 128k context can require tens of gigabytes of VRAM.',
     },
     {
       heading: 'Batching Strategies',
-      body: 'Static batching groups requests into fixed-size batches that start and finish together. This is simple but inefficient — if one request in a batch is very long, all others must wait. Dynamic batching allows requests to join a batch as they arrive. Continuous batching (used by vLLM, TGI) is the state of the art: it processes a stream of requests, adding new ones as soon as any in the current batch finish, maximizing GPU utilization.',
+      body: 'A GPU is most efficient when processing many requests simultaneously — idle GPU cores are wasted capacity. Static batching waits until a batch fills before starting, which wastes time for users who arrive while a batch is processing. Dynamic batching adds requests as they arrive, reducing wait time but complicating memory management. Continuous batching (PagedAttention, used in vLLM) is the state of the art: it treats GPU memory like virtual memory, storing KV cache blocks in non-contiguous memory pages. This enables dozens of concurrent requests with different sequence lengths, achieving near-100% GPU utilization — roughly 2× the throughput of naive implementations on the same hardware.',
     },
     {
-      heading: 'Quantization: Trading Precision for Speed',
-      body: 'Quantization represents model weights at lower numerical precision: FP32 (32-bit float), FP16 (16-bit float), INT8 (8-bit integer), or INT4 (4-bit integer). Each halving of precision halves memory usage and typically doubles throughput — at some cost to model quality. For most tasks, the quality degradation from FP16 is imperceptible, INT8 is usually acceptable, and INT4 may show noticeable quality loss on sensitive tasks.',
+      heading: 'Quantization: Precision vs Memory',
+      body: 'FP32 uses 32 bits (4 bytes) per weight — full precision, but enormous memory. FP16 uses 2 bytes per weight with negligible quality loss on most tasks. INT8 uses 1 byte per weight with roughly 1% quality loss and 3× faster inference on hardware with INT8 support. INT4 uses 0.5 bytes per weight with roughly 5% quality loss and 4× faster inference. Running LLaMA-3 8B as a concrete example: FP16 requires 16GB VRAM (just fits on a high-end consumer GPU); INT4 requires 4GB VRAM (runs on an Apple M2 MacBook). This is the gap that tools like llama.cpp and Ollama exploit to bring large models to consumer hardware.',
+    },
+    {
+      heading: 'Speculative Decoding',
+      body: 'Autoregressive generation is sequential by design — you must generate token N before token N+1. This limits parallelism. Speculative decoding breaks this constraint: a small draft model generates 4–8 tokens quickly (using few resources), then the large verifier model checks all of them in parallel in a single forward pass. If the draft tokens match what the verifier would have generated (which happens ~80% of the time for a well-matched draft), you\'ve produced 4–8 tokens for the cost of roughly 1 large-model forward pass. When a draft token is rejected, you fall back to the verifier\'s output and start fresh.',
     },
     {
       heading: 'Serving Architectures',
-      body: 'A single GPU can serve models up to ~24B parameters at FP16. Larger models require model parallelism: tensor parallelism splits individual weight matrices across GPUs (all GPUs work on each token), while pipeline parallelism assigns different layers to different GPUs (GPUs pass activations in sequence). For highest throughput, multiple model replicas can serve different users simultaneously.',
+      body: 'Single-GPU serving works for small models (up to ~13B INT4) — a single A100 or consumer GPU handles one or a few concurrent requests. Multi-GPU tensor parallelism splits individual weight matrices across GPUs, with all GPUs collaborating on each token — effective for 30B–70B models. Pipeline parallelism assigns different transformer layers to different GPUs in sequence — simpler to implement but introduces pipeline bubbles. Disaggregated serving is the frontier approach: separate GPU clusters handle the prefill phase (processing the input prompt) and the decode phase (autoregressive generation), optimizing each independently. This enables massive scale with thousands of concurrent users.',
+    },
+    {
+      heading: 'KV Cache: Avoiding Redundant Computation',
+      body: 'During autoregressive generation, each new token attends to all previous tokens. Without caching, every generation step would recompute the Key and Value projections for every previous token — O(n²) work per sequence. The KV cache stores these computed K and V tensors, so each new step only needs to compute K and V for the single new token. This reduces generation from O(n²) to O(n), making long sequences practical.',
     },
     {
       heading: 'PagedAttention and vLLM',

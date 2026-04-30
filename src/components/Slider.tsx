@@ -8,6 +8,10 @@ interface SliderProps {
   max: number
   step?: number
   formatValue?: (value: number) => string
+  /** Semantic pole labels, e.g. { left: "Uniform", right: "Peaked" } */
+  hint?: { left: string; right: string }
+  /** One sentence explaining what this slider controls */
+  explanation?: string
   className?: string
 }
 
@@ -19,6 +23,8 @@ const Slider: React.FC<SliderProps> = ({
   max,
   step = 0.01,
   formatValue,
+  hint,
+  explanation,
   className = '',
 }) => {
   const id = useId()
@@ -60,9 +66,21 @@ const Slider: React.FC<SliderProps> = ({
           focus-visible:ring-offset-surface-1"
       />
       <div className="flex justify-between text-xs text-slate-500">
-        <span>{min}</span>
-        <span>{max}</span>
+        {hint ? (
+          <>
+            <span>← {hint.left}</span>
+            <span>{hint.right} →</span>
+          </>
+        ) : (
+          <>
+            <span>{min}</span>
+            <span>{max}</span>
+          </>
+        )}
       </div>
+      {explanation && (
+        <p className="text-xs text-slate-500 mt-1">{explanation}</p>
+      )}
     </div>
   )
 }

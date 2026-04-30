@@ -8,6 +8,8 @@ export interface Chapter {
   emoji: string
   topics: string[]
   interactives: string[]
+  estimatedMinutes: number
+  prerequisites: number[]
 }
 
 export const CHAPTERS: Chapter[] = [
@@ -21,6 +23,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🌐',
     topics: ['Language models as probability distributions', 'Next-token prediction', 'Pretraining → Fine-tuning → RLHF pipeline'],
     interactives: ['Next-word prediction with temperature control'],
+    estimatedMinutes: 15,
+    prerequisites: [],
   },
   {
     id: 2,
@@ -32,6 +36,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🔤',
     topics: ['Byte-Pair Encoding (BPE)', 'Vocabulary construction', 'Token embeddings', 'Positional encodings'],
     interactives: ['BPE step-by-step visualizer', 'Live tokenizer widget', '3D embedding space explorer', 'Positional encoding frequency explorer'],
+    estimatedMinutes: 20,
+    prerequisites: [1],
   },
   {
     id: 3,
@@ -43,6 +49,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '👁️',
     topics: ['Dot-product attention', 'Scaling by √d_k', 'Multi-head attention', 'Causal masking'],
     interactives: ['Animated attention matrix with temperature', 'Multi-head attention patterns', 'Causal mask toggle'],
+    estimatedMinutes: 25,
+    prerequisites: [1, 2],
   },
   {
     id: 4,
@@ -54,6 +62,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🏗️',
     topics: ['GPT architecture overview', 'Layer Normalization', 'Feed-forward networks', 'Residual connections'],
     interactives: ['Clickable architecture diagram', 'LayerNorm distribution visualizer', 'GELU vs ReLU activation plot'],
+    estimatedMinutes: 20,
+    prerequisites: [1, 2, 3],
   },
   {
     id: 5,
@@ -65,6 +75,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🏋️',
     topics: ['Cross-entropy loss', 'Data pipelines', 'Learning rate schedules', 'Training dynamics'],
     interactives: ['3D loss surface explorer', 'Training dynamics simulator with LR slider'],
+    estimatedMinutes: 20,
+    prerequisites: [1, 2, 3, 4],
   },
   {
     id: 6,
@@ -76,6 +88,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🎯',
     topics: ['Supervised Fine-Tuning (SFT)', 'Instruction-response pairs', 'LoRA rank decomposition', 'Parameter efficiency'],
     interactives: ['LoRA rank explorer with parameter counter'],
+    estimatedMinutes: 15,
+    prerequisites: [1, 5],
   },
   {
     id: 7,
@@ -87,6 +101,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🧭',
     topics: ['Reward modeling', 'PPO optimization', 'RLAIF', 'DPO — Direct Preference Optimization'],
     interactives: ['Animated RLHF pipeline', 'Preference data explorer'],
+    estimatedMinutes: 15,
+    prerequisites: [1, 6],
   },
   {
     id: 8,
@@ -98,6 +114,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🧠',
     topics: ['Chain-of-thought prompting', 'Test-time compute scaling', 'Self-improvement loops'],
     interactives: ['Chain-of-thought trace visualizer'],
+    estimatedMinutes: 15,
+    prerequisites: [1, 3],
   },
   {
     id: 9,
@@ -109,6 +127,8 @@ export const CHAPTERS: Chapter[] = [
     emoji: '🚀',
     topics: ['KV cache mechanics', 'Batching strategies', 'Quantization (INT4/INT8/FP16)', 'Serving architectures'],
     interactives: ['Quantization quality vs speed trade-off slider'],
+    estimatedMinutes: 15,
+    prerequisites: [1, 5],
   },
 ]
 

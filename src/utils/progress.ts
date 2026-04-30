@@ -40,3 +40,24 @@ export function clearProgress(): void {
     // storage unavailable
   }
 }
+
+const LAST_VISITED_KEY = 'llm-course-last-visited'
+
+export function setLastVisited(chapterId: number): void {
+  try {
+    localStorage.setItem(LAST_VISITED_KEY, String(chapterId))
+  } catch {
+    // storage unavailable
+  }
+}
+
+export function getLastVisited(): number | null {
+  try {
+    const raw = localStorage.getItem(LAST_VISITED_KEY)
+    if (!raw) return null
+    const id = parseInt(raw, 10)
+    return isNaN(id) ? null : id
+  } catch {
+    return null
+  }
+}

@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { markVisited } from '../../utils/progress'
 import { getChapter } from '../../data/chapters'
 import ChapterHeader from '../../components/ChapterHeader'
+import LearningOutcomes from '../../components/LearningOutcomes'
+import ChapterNavButton from '../../components/ChapterNavButton'
 import InfoCard from '../../components/InfoCard'
 import SectionDivider from '../../components/SectionDivider'
 import QuantizationWidget from './QuantizationWidget'
@@ -17,6 +19,15 @@ export default function Chapter09() {
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       <ChapterHeader chapter={chapter} totalChapters={9} />
+
+      <LearningOutcomes
+        outcomes={[
+          'Explain how KV cache reduces inference complexity from O(n²) to O(n)',
+          'Calculate memory requirements for a model at different precisions',
+          'Describe the trade-offs between quantization levels',
+          'Understand how speculative decoding accelerates generation',
+        ]}
+      />
 
       {/* Intro */}
       <div className="space-y-4 mb-10">
@@ -65,28 +76,40 @@ export default function Chapter09() {
         <p className="text-slate-400 leading-relaxed">{content.sections[2]!.body}</p>
       </div>
 
+      {/* Quantization Widget */}
+      <h3 className="text-lg font-semibold text-white mb-3">Quantization Trade-off Explorer</h3>
+      <p className="text-slate-300 leading-relaxed mb-4">
+        Compare memory usage, quality, and inference speed across precision formats.
+        The memory bar shows VRAM required to load the model weights alone — KV cache
+        and activations add additional overhead during inference.
+      </p>
+
+      <InfoCard variant="tip" title="What to observe">
+        Select different precision levels and watch the memory bar change. Then move the model size slider — notice how even at INT4, a 70B model requires 35GB VRAM. This is why companies run large models on clusters, not laptops. Notice also that quality degrades gracefully: INT8 is nearly indistinguishable from FP16 for most tasks.
+      </InfoCard>
+
+      <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6 mb-8">
+        <QuantizationWidget />
+      </div>
+
+      <InfoCard variant="concept" title="The quantization sweet spot">
+        The quantization sweet spot for most applications is INT4 or INT8 — you get 4–8× memory reduction with quality loss that is imperceptible in most use cases. This is why llama.cpp and Ollama have made 7B–13B models runnable on MacBooks, bringing cutting-edge models to consumer hardware without a cloud subscription.
+      </InfoCard>
+
+      <SectionDivider label="Speculative Decoding" />
+
+      {/* Section 4: Speculative decoding */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-white mb-3">{content.sections[3]!.heading}</h2>
+        <p className="text-slate-400 leading-relaxed">{content.sections[3]!.body}</p>
+      </div>
+
       <SectionDivider label="Serving Architecture" />
 
-      {/* Sections 4–5 */}
-      {content.sections.slice(3).map((section, i) => (
-        <div key={i} className="mb-8">
-          <h2 className="text-xl font-semibold text-white mb-3">{section.heading}</h2>
-          <p className="text-slate-400 leading-relaxed">{section.body}</p>
-        </div>
-      ))}
-
-      <SectionDivider label="Interactive" />
-
-      {/* Quantization Widget */}
-      <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-6 mb-8">
-        <h2 className="text-xl font-semibold text-white mb-2">
-          Quantization Trade-off Explorer
-        </h2>
-        <p className="text-slate-400 text-sm mb-6">
-          Compare memory usage, quality, and inference speed across precision formats.
-          Adjust model size to estimate VRAM requirements.
-        </p>
-        <QuantizationWidget />
+      {/* Section 5: Serving architectures */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-white mb-3">{content.sections[4]!.heading}</h2>
+        <p className="text-slate-400 leading-relaxed">{content.sections[4]!.body}</p>
       </div>
 
       <InfoCard variant="warning" title="INT4 quality depends on the task">
@@ -96,12 +119,7 @@ export default function Chapter09() {
         specific use case before deploying at low precision.
       </InfoCard>
 
-      <InfoCard variant="concept" title="The end of the course">
-        You have now covered the full LLM lifecycle: from raw text and tokenization, through
-        transformer architecture and pretraining, to fine-tuning, alignment, reasoning, and
-        production deployment. The field moves fast — but these fundamentals will remain
-        relevant as the architectures evolve.
-      </InfoCard>
+      <ChapterNavButton currentChapterId={9} />
     </article>
   )
 }
